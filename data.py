@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-data.py — конфигурация для netwatcher.py.
+data.py — configuration for netwatcher.py.
 
-Файл лежит отдельно от кода, может содержать секреты.
-Права: 600, владелец root.
+The file is kept separate from the code and may contain secrets.
+Permissions: 600, owner: root.
 """
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Пути
+# Paths
 # ─────────────────────────────────────────────────────────────────────────────
 LOG_DIR    = "/var/log/netwatcher"
 LOG_FILE   = "/var/log/netwatcher/netwatcher.log"
 STATE_FILE = "/var/log/netwatcher/state.json"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Внешние ресурсы для проверки связности (шаг 1 алгоритма)
+# External resources for connectivity checks (step 1 of the algorithm)
 # ─────────────────────────────────────────────────────────────────────────────
 CHECK_URLS = [
     "https://copilot.microsoft.com/",
@@ -22,12 +22,12 @@ CHECK_URLS = [
     "https://youtube.com/",
 ]
 
-# Цель для url-test узлов. Пока в скрипте используется как информационная
-# переменная — прямой прокси-запрос через конкретный узел извне не сделать.
+# Target for url-test nodes. For now, it is used in the script as an informational
+# variable — a direct proxy request through a specific node from outside is not possible.
 URL_TEST_TARGET = "https://www.google.com/generate_204"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Внешние утилиты
+# External utilities
 # ─────────────────────────────────────────────────────────────────────────────
 TCPING_BIN = "tcping"
 CURL_BIN   = "curl"
@@ -35,7 +35,7 @@ UCI_BIN    = "uci"
 LUA_BIN    = "lua"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Таймауты (сек)
+# Timeouts (sec)
 # ─────────────────────────────────────────────────────────────────────────────
 TCPING_TIMEOUT    = 5
 CURL_TIMEOUT      = 10
@@ -53,34 +53,34 @@ SUBSCRIBE_LUA     = "/usr/share/passwall2/subscribe.lua"
 DIRECT_NODE       = "_direct"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Параллелизм
+# Parallelism
 # ─────────────────────────────────────────────────────────────────────────────
-# Сколько узлов проверяем одновременно. Для роутеров с 128 МБ ОЗУ 8 — норм;
-# при большом количестве узлов можно поднять до 16-32.
+# How many nodes we check simultaneously. For routers with 128 MB of RAM, 8 is normal;
+# with a large number of nodes it can be increased to 16-32.
 MAX_WORKERS = 8
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Чёрный список серверов
+# Server blacklist
 # ─────────────────────────────────────────────────────────────────────────────
-# Статический чёрный список — адреса, которые НИКОГДА не должны выбираться.
-# Формат: список строк, точное совпадение по `address` из UCI.
+# Static blacklist — addresses that should NEVER be selected.
+# Format: list of strings, exact match against the `address` from UCI.
 SERVER_BLACKLIST_ADDRESSES = [
-    # Пример:
+    # Example:
     # "example.com",
     # "1.2.3.4",
 ]
 
-# Динамический чёрный список: узел, проваливший N проверок подряд,
-# исключается из выбора на BLACKLIST_DURATION_MIN минут.
-BLACKLIST_THRESHOLD    = 3      # сколько фейлов подряд → в чёрный список
-BLACKLIST_DURATION_MIN = 30     # на сколько минут
+# Dynamic blacklist: a node that fails N checks in a row,
+# is excluded from selection for BLACKLIST_DURATION_MIN minutes.
+BLACKLIST_THRESHOLD    = 3      # how many consecutive failures → blacklist
+BLACKLIST_DURATION_MIN = 30     # for how many minutes
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Состояние
+# State
 # ─────────────────────────────────────────────────────────────────────────────
-HISTORY_LIMIT = 100   # сколько последних записей о запусках хранить
+HISTORY_LIMIT = 100   # how many recent run records to keep
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Секреты (если понадобятся — хранить здесь)
+# Secrets (if needed, store them here)
 # ─────────────────────────────────────────────────────────────────────────────
 # SUBSCRIPTION_KEY = "..."
