@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Загрузка пользовательской конфигурации из /etc/netwatcher/data.py
+# Loading the user configuration from /etc/netwatcher/data.py
 # ─────────────────────────────────────────────────────────────────────────────
 CONFIG_DIR = os.environ.get("NETWATCHER_CONFIG_DIR", "/etc/netwatcher")
 if CONFIG_DIR not in sys.path:
@@ -27,14 +27,14 @@ try:
     import data as CONFIG  # type: ignore
 except ImportError as exc:
     print(
-        f"FATAL: не удалось загрузить конфигурацию из {CONFIG_DIR}/data.py: {exc}",
+        f"FATAL: failed to load configuration from {CONFIG_DIR}/data.py: {exc}",
         file=sys.stderr,
     )
     sys.exit(2)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Константы из data.py
+# Constants from data.py
 # ─────────────────────────────────────────────────────────────────────────────
 LOG_DIR    = getattr(CONFIG, "LOG_DIR",    "/var/log/netwatcher")
 LOG_FILE   = getattr(CONFIG, "LOG_FILE",   os.path.join(LOG_DIR, "netwatcher.log"))
@@ -68,17 +68,17 @@ BLACKLIST_DURATION_MIN: int = getattr(CONFIG, "BLACKLIST_DURATION_MIN", 30)
 
 HISTORY_LIMIT: int = getattr(CONFIG, "HISTORY_LIMIT", 100)
 
-# Валидные HTTP-коды для «ресурс ответил корректно».
+# Valid HTTP codes for a resource that responded correctly.
 VALID_REDIRECT_CODES = (301, 302, 307, 308)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Логирование
+# Logging
 # ─────────────────────────────────────────────────────────────────────────────
 def setup_logging() -> logging.Logger:
     """
-    Настраивает корневой логгер скрипта. Уровень всегда INFO.
-    Записи идут в файл /var/log/netwatcher/netwatcher.log и в stdout.
+    Configures the script's root logger. The level is always INFO.
+    Records go to the file /var/log/netwatcher/netwatcher.log and to stdout.
     """
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -111,16 +111,16 @@ logger = setup_logging()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Утилиты общего назначения
+# General-purpose utilities
 # ─────────────────────────────────────────────────────────────────────────────
 def _fmt_ms(value: Optional[float]) -> str:
-    """Форматирование миллисекунд для логов: 'n/a' или 'X.Xms'."""
+    """Formatting milliseconds for logs: 'n/a' or 'X.Xms'."""
     return f"{value:.1f}ms" if value is not None else "n/a"
 
 
 def _extract_host_port(url: str) -> Tuple[str, int]:
     """
-    Возвращает (host, port) из URL. По умолчанию 443 для https, 80 для http.
+    Returns (host, port) from a URL. Defaults to 443 for https and 80 for http.
     """
     parsed = urlparse(url)
     host = parsed.hostname or ""
@@ -135,12 +135,12 @@ def run_command(
     capture: bool = True,
 ) -> subprocess.CompletedProcess:
     """
-    Универсальная обёртка над subprocess.run для вызова внешних утилит.
+    Universal wrapper around subprocess.run for invoking external utilities.
 
-    :param cmd:     список аргументов;
-    :param timeout: таймаут в секундах;
-    :param check:   если True — исключение при ненулевом коде;
-    :param capture: перехватывать stdout/stderr;
+    :param cmd:     list of arguments;
+    :param timeout: timeout in seconds;
+    :param check:   if True — raise on non-zero exit code;
+    :param capture: capture stdout/stderr;
     :return:        CompletedProcess.
     """
     pretty = " ".join(cmd)
@@ -149,30 +149,30 @@ def run_command(
         return subprocess.run(cmd, capture_output=capture, text=True,
                               timeout=timeout, check=check)
     except FileNotFoundError as exc:
-        logger.error("Команда не найдена: %s (%s)", pretty, exc)
+        logger.error("Command not found: %s (%s)", pretty, exc)
         raise RuntimeError(f"binary not found: {cmd[0]}") from exc
     except subprocess.TimeoutExpired as exc:
-        logger.error("Таймаут команды (%ss): %s", timeout, pretty)
+        logger.error("Command timed out (%ss): %s", timeout, pretty)
         raise RuntimeError(f"command timeout: {pretty}") from exc
 
 
 def which(binary: str) -> Optional[str]:
-    """Абсолютный путь до бинарника или None."""
+    """Absolute path to the binary or None."""
     return shutil.which(binary)
 
 
 def validate_config() -> None:
     """
-    Проверяет критичные для работы параметры. При отсутствии CHECK_URLS
-    скрипт завершается с кодом 2.
+    Validates critical runtime parameters. If CHECK_URLS is missing,
+    the script exits with code 2.
     """
     if not CHECK_URLS:
-        logger.error("CHECK_URLS в data.py пуст — нечего проверять")
+        logger.error("CHECK_URLS in data.py is empty — nothing to check")
         sys.exit(2)
     if not SERVER_BLACKLIST_ADDRESSES:
-        logger.info("SERVER_BLACKLIST_ADDRESSES пуст — статический чёрный список выключен")
+        logger.info("SERVER_BLACKLIST_ADDRESSES is empty — static blacklist disabled")
     logger.info(
-        "Параметры: MAX_WORKERS=%d, BLACKLIST_THRESHOLD=%d, BLACKLIST_DURATION_MIN=%d",
+        "Parameters: MAX_WORKERS=%d, BLACKLIST_THRESHOLD=%d, BLACKLIST_DURATION_MIN=%d",
         MAX_WORKERS, BLACKLIST_THRESHOLD, BLACKLIST_DURATION_MIN,
     )
 
@@ -181,7 +181,7 @@ def validate_config() -> None:
 # UCI
 # ─────────────────────────────────────────────────────────────────────────────
 def uci_get(path: str) -> Optional[str]:
-    """Читает UCI-параметр, None при отсутствии/ошибке."""
+    """Reads a UCI parameter, None if missing or on error."""
     try:
         res = run_command([UCI_BIN, "-q", "get", path], timeout=10)
     except RuntimeError:
@@ -192,50 +192,50 @@ def uci_get(path: str) -> Optional[str]:
 
 
 def uci_set(path: str, value: str) -> bool:
-    """Устанавливает UCI-параметр. True при успехе."""
+    """Sets a UCI parameter. True on success."""
     try:
         res = run_command([UCI_BIN, "set", f"{path}={value}"], timeout=10)
     except RuntimeError:
         return False
     if res.returncode != 0:
-        logger.error("uci set %s=%s провалился: %s",
+        logger.error("uci set %s=%s failed: %s",
                      path, value, (res.stderr or "").strip())
         return False
-    logger.info("UCI: установлено %s=%s", path, value)
+    logger.info("UCI: set %s=%s", path, value)
     return True
 
 
 def uci_commit(package: str = PASSWALL2_PACKAGE) -> bool:
-    """Фиксирует UCI-изменения для пакета."""
+    """Commits UCI changes for a package."""
     try:
         res = run_command([UCI_BIN, "commit", package], timeout=10)
     except RuntimeError:
         return False
     if res.returncode != 0:
-        logger.error("uci commit %s провалился: %s",
+        logger.error("uci commit %s failed: %s",
                      package, (res.stderr or "").strip())
         return False
-    logger.info("UCI: изменения для '%s' зафиксированы", package)
+    logger.info("UCI: changes for '%s' committed", package)
     return True
 
 
 def uci_show(package: str = PASSWALL2_PACKAGE) -> str:
-    """Полный дамп `uci show <package>`."""
+    """Full dump of `uci show <package>`."""
     try:
         res = run_command([UCI_BIN, "show", package], timeout=NET_CMD_TIMEOUT)
     except RuntimeError:
         return ""
     if res.returncode != 0:
-        logger.error("uci show %s провалился", package)
+        logger.error("uci show %s failed", package)
         return ""
     return res.stdout or ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Состояние: state.json
+# State: state.json
 # ─────────────────────────────────────────────────────────────────────────────
 def _default_state() -> Dict[str, Any]:
-    """Пустое состояние."""
+    """Empty state."""
     return {
         "last_run": None,
         "last_result": None,
@@ -249,22 +249,22 @@ def _default_state() -> Dict[str, Any]:
 
 def load_state() -> Dict[str, Any]:
     """
-    Загружает state.json. При отсутствии/повреждении — состояние по
-    умолчанию. Битые типы полей восстанавливаются.
+    Loads state.json. If it is missing or corrupted, the state resets to the
+    default. Invalid field types are restored.
     """
     if not os.path.exists(STATE_FILE):
-        logger.info("state.json не найден — начинаем с нуля")
+        logger.info("state.json not found — starting from scratch")
         return _default_state()
 
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("Не читается state.json (%s) — сброс", exc)
+        logger.warning("Unable to read state.json (%s) — resetting", exc)
         return _default_state()
 
     if not isinstance(data, dict):
-        logger.warning("state.json не является объектом — сброс")
+        logger.warning("state.json is not an object — resetting")
         return _default_state()
 
     default = _default_state()
@@ -278,7 +278,7 @@ def load_state() -> Dict[str, Any]:
 
 
 def save_state(state: Dict[str, Any]) -> None:
-    """Атомарная запись state.json (tmp + os.replace)."""
+    """Atomically write state.json (tmp + os.replace)."""
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     state["last_run"] = datetime.now().isoformat(timespec="seconds")
 
@@ -289,9 +289,9 @@ def save_state(state: Dict[str, Any]) -> None:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
             json.dump(state, fh, ensure_ascii=False, indent=2, sort_keys=True)
         os.replace(tmp_path, STATE_FILE)
-        logger.info("Состояние сохранено в %s", STATE_FILE)
+        logger.info("State saved to %s", STATE_FILE)
     except OSError as exc:
-        logger.error("Ошибка записи state.json: %s", exc)
+        logger.error("Error writing state.json: %s", exc)
         try:
             os.unlink(tmp_path)
         except OSError:
@@ -299,7 +299,7 @@ def save_state(state: Dict[str, Any]) -> None:
 
 
 def append_history(state: Dict[str, Any], entry: Dict[str, Any]) -> None:
-    """Добавляет запись в историю запусков, обрезает по HISTORY_LIMIT."""
+    """Adds a run history entry and truncates it to HISTORY_LIMIT."""
     entry.setdefault("timestamp", datetime.now().isoformat(timespec="seconds"))
     hist = state.setdefault("history", [])
     hist.append(entry)
@@ -308,17 +308,17 @@ def append_history(state: Dict[str, Any], entry: Dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Чёрный список узлов
+# Node blacklist
 # ─────────────────────────────────────────────────────────────────────────────
 def _is_static_blacklisted(address: str) -> bool:
-    """Проверка по статическому списку адресов из data.py."""
+    """Checks against the static address list from data.py."""
     return address in SERVER_BLACKLIST_ADDRESSES
 
 
 def _is_dynamic_blacklisted(address: str, state: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
-    Проверка динамического чёрного списка.
-    :return: (в_чёрном_ли, до_какого_времени_ISO или None).
+    Checks the dynamic blacklist.
+    :return: (is_blacklisted, until_iso_or_None).
     """
     ns = (state.get("node_stats") or {}).get(address)
     if not ns:
@@ -337,8 +337,8 @@ def _is_dynamic_blacklisted(address: str, state: Dict[str, Any]) -> Tuple[bool, 
 
 def is_node_blacklisted(address: str, state: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
-    Комбинированная проверка: статический + динамический чёрный список.
-    :return: (запрещён_ли, причина).
+    Combined check: static + dynamic blacklist.
+    :return: (is_forbidden, reason).
     """
     if _is_static_blacklisted(address):
         return True, "static"
@@ -350,12 +350,11 @@ def is_node_blacklisted(address: str, state: Dict[str, Any]) -> Tuple[bool, Opti
 
 def update_node_stats(state: Dict[str, Any], servers: Dict[str, Dict[str, Any]]) -> None:
     """
-    Обновляет накопительную статистику по узлам. Ключ — `address`
-    (ID узлов PassWall2 меняются при обновлении подписки, а адрес стабилен).
+    Updates cumulative node statistics. The key is `address`
+    (PassWall2 node IDs change when the subscription is refreshed, but the address stays stable).
 
-    При BLACKLIST_THRESHOLD провалов подряд узел попадает в динамический
-    чёрный список на BLACKLIST_DURATION_MIN минут. Первый успех — снимает
-    чёрный список.
+    When BLACKLIST_THRESHOLD consecutive failures is reached, the node is added to the dynamic
+    blacklist for BLACKLIST_DURATION_MIN minutes. The first success removes the blacklist.
     """
     now = datetime.now()
     stats = state.setdefault("node_stats", {})
@@ -379,7 +378,7 @@ def update_node_stats(state: Dict[str, Any], servers: Dict[str, Dict[str, Any]])
             ns["consecutive_fails"] = 0
             ns["consecutive_oks"] = int(ns.get("consecutive_oks") or 0) + 1
             if ns.get("blacklisted_until"):
-                logger.info("Узел %s ('%s') оправился — снимаю чёрный список",
+                logger.info("Node %s ('%s') recovered — removing from blacklist",
                             addr, srv["remarks"])
             ns["blacklisted_until"] = None
         else:
@@ -389,27 +388,27 @@ def update_node_stats(state: Dict[str, Any], servers: Dict[str, Dict[str, Any]])
                 until = now + timedelta(minutes=BLACKLIST_DURATION_MIN)
                 ns["blacklisted_until"] = until.isoformat(timespec="seconds")
                 logger.warning(
-                    "Узел %s ('%s') провалил %d проверок подряд — "
-                    "в чёрном списке до %s",
+                    "Node %s ('%s') failed %d checks in a row — "
+                    "blacklisted until %s",
                     addr, srv["remarks"], ns["consecutive_fails"],
                     ns["blacklisted_until"],
                 )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Сетевые проверки: базовые
+# Network checks: basic
 # ─────────────────────────────────────────────────────────────────────────────
 def tcping(host: str, port: int, timeout: int = TCPING_TIMEOUT) -> Tuple[bool, Optional[float]]:
     """
-    TCP-проверка через утилиту `tcping`.
+    TCP check via the `tcping` utility.
 
-    Синтаксис: tcping -c 1 -t <timeout> -p <port> <host>
+    Syntax: tcping -c 1 -t <timeout> -p <port> <host>
 
-    ВАЖНО: при неуспехе возвращаем latency=None — защита от бага, когда
-    tcping даже на провале печатает 'time=0.00ms' и нулевая задержка
-    попадает в сравнение как лучшая.
+    IMPORTANT: on failure we return latency=None — protection against a bug where
+    tcping prints 'time=0.00ms' even on a failed attempt, and a zero latency
+    gets treated as the best result.
 
-    :return: (успех, задержка_мс или None).
+    :return: (success, latency_ms_or_None).
     """
     if not host or not port:
         return False, None
@@ -450,13 +449,13 @@ def tcping(host: str, port: int, timeout: int = TCPING_TIMEOUT) -> Tuple[bool, O
 
 def curl_https_check(url: str, timeout: int = CURL_TIMEOUT) -> Tuple[bool, Optional[int]]:
     """
-    HTTPS GET-проверка через curl.
+    HTTPS GET check via curl.
 
-    Возвращает (получен_ли_ответ, http_code). Если соединение не установлено
-    или таймаут — (False, None). Код 0 (curl "000") приводится к None.
+    Returns (got_response, http_code). If the connection is not established
+    or times out — (False, None). Code 0 (curl "000") is normalized to None.
 
-    :param url:     URL для проверки;
-    :param timeout: таймаут, сек.
+    :param url:     URL to check;
+    :param timeout: timeout in seconds.
     :return:        (got_response, http_code_or_None).
     """
     cmd = [
@@ -487,12 +486,12 @@ def curl_https_check(url: str, timeout: int = CURL_TIMEOUT) -> Tuple[bool, Optio
 
 def url_test(host: str, port: int, timeout: int = TCPING_TIMEOUT) -> Tuple[bool, Optional[float]]:
     """
-    «url-test» узла — независимая проверка через чистый Python-сокет.
+    A node's `url-test` — an independent check over a plain Python socket.
 
-    Служит второй, независимой от tcping, точкой замера. По ТЗ результат
-    url-test имеет приоритет над tcping при выборе latency.
+    This serves as the second, independent latency measurement point from tcping.
+    By spec, the url-test result takes priority over tcping when choosing latency.
 
-    :return: (успех, задержка_мс или None).
+    :return: (success, latency_ms_or_None).
     """
     if not host or not port:
         return False, None
@@ -502,15 +501,15 @@ def url_test(host: str, port: int, timeout: int = TCPING_TIMEOUT) -> Tuple[bool,
         with socket.create_connection((host, int(port)), timeout=timeout):
             return True, (time.monotonic() - start) * 1000.0
     except (OSError, ValueError) as exc:
-        logger.debug("url_test %s:%s провалился: %s", host, port, exc)
+        logger.debug("url_test %s:%s failed: %s", host, port, exc)
         return False, None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Внешние проверки: оценка и агрегация
+# External checks: evaluation and aggregation
 # ─────────────────────────────────────────────────────────────────────────────
 def _is_http_code_ok(code: Optional[int]) -> bool:
-    """True для 2xx, 301, 302, 307, 308. Всё остальное — не успех."""
+    """True for 2xx, 301, 302, 307, 308. Everything else is a failure."""
     if not code:
         return False
     if 200 <= code < 300:
@@ -519,14 +518,14 @@ def _is_http_code_ok(code: Optional[int]) -> bool:
 
 
 def _is_http_code_5xx(code: Optional[int]) -> bool:
-    """True для 5xx."""
+    """True for 5xx."""
     if not code:
         return False
     return 500 <= code < 600
 
 
 def _format_http_code(code: Optional[int]) -> str:
-    """Форматирует HTTP-код для логов. None и 0 → 'timeout'."""
+    """Formats an HTTP status code for log output. None and 0 → 'timeout'."""
     if code is None or code == 0:
         return "timeout"
     return str(code)
@@ -534,16 +533,16 @@ def _format_http_code(code: Optional[int]) -> str:
 
 def evaluate_resource(tcp_ok: bool, http_code: Optional[int]) -> Tuple[bool, str]:
     """
-    Оценивает доступность одного ресурса по результатам двух проверок.
+    Evaluates the availability of a single resource based on the results of two checks.
 
-    Приоритеты:
-        1. HTTPS-проверка — главный критерий.
-        2. Если HTTP-код валиден (2xx / 301 / 302 / 307 / 308) — ресурс OK.
-        3. Если HTTP-код 5xx — приоритет переходит к tcping: tcping OK →
-           ресурс OK (сервер лежит, но сеть работает), tcping FAIL → FAIL.
-        4. Всё остальное (4xx, 0, timeout) — ресурс НЕ доступен.
+    Priority:
+        1. HTTPS check — primary criterion.
+        2. If the HTTP code is valid (2xx / 301 / 302 / 307 / 308) — resource OK.
+        3. If the HTTP code is 5xx — priority falls back to tcping: tcping OK →
+           resource OK (server is down, but the network works), tcping FAIL → FAIL.
+        4. Everything else (4xx, 0, timeout) — resource NOT available.
 
-    :return: (доступен_ли, краткая_причина).
+    :return: (is_available, short_reason).
     """
     if not http_code:
         return False, "https timeout"
@@ -561,9 +560,9 @@ def evaluate_resource(tcp_ok: bool, http_code: Optional[int]) -> Tuple[bool, str
 
 def _check_single_url(url: str) -> Tuple[str, Dict[str, Any]]:
     """
-    Проверяет один внешний URL (tcping + curl). Для ThreadPool.
+    Checks a single external URL (tcping + curl). For ThreadPool.
 
-    :return: (url, info). info содержит:
+    :return: (url, info). info contains:
                 host, port, tcping_ok, tcping_latency_ms,
                 https_ok, http_code, resource_ok, reason.
     """
@@ -571,7 +570,7 @@ def _check_single_url(url: str) -> Tuple[str, Dict[str, Any]]:
     tcp_ok, tcp_lat = tcping(host, port)
     got_response, http_code = curl_https_check(url)
 
-    # https_ok — «HTTP-код валидный», а не «был любой ответ».
+    # https_ok — a valid HTTP code, not just any response.
     https_ok = got_response and _is_http_code_ok(http_code)
 
     resource_ok, reason = evaluate_resource(tcp_ok, http_code)
@@ -590,21 +589,21 @@ def _check_single_url(url: str) -> Tuple[str, Dict[str, Any]]:
 
 def check_external_resources() -> Tuple[bool, Dict[str, Any]]:
     """
-    Шаг 1: параллельная проверка связности с внешними ресурсами.
+    Step 1: parallel connectivity check against external resources.
 
-    Условия успеха:
-        * допускается провал НЕ БОЛЕЕ одного ресурса (для N >= 2);
-        * для N = 1 — единственный ресурс должен быть доступен.
+    Success conditions:
+        * no more than one resource may fail (for N >= 2);
+        * for N = 1 — the single resource must be available.
 
-    Логирование:
-        * недоступный ресурс → CRITICAL;
-        * общий FAIL → CRITICAL;
-        * доступный ресурс → INFO.
+    Logging:
+        * unavailable resource → CRITICAL;
+        * overall FAIL → CRITICAL;
+        * available resource → INFO.
 
-    :return: (глобальный_успех, детали по каждому URL).
+    :return: (overall_success, details for each URL).
     """
     total = len(CHECK_URLS)
-    logger.info("Проверяю внешние ресурсы (%d шт., параллельно)", total)
+    logger.info("Checking external resources (%d items, in parallel)", total)
 
     details: Dict[str, Any] = {}
     workers = min(MAX_WORKERS, max(1, total))
@@ -617,13 +616,13 @@ def check_external_resources() -> Tuple[bool, Dict[str, Any]]:
                 _, info = fut.result()
                 details[url] = info
             except Exception as exc:  # noqa: BLE001
-                logger.exception("Ошибка проверки ресурса %s: %s", url, exc)
+                logger.exception("Error checking resource %s: %s", url, exc)
                 details[url] = {
                     "resource_ok": False,
                     "reason": f"exception: {exc}",
                 }
 
-    # Сводка и подсчёт провалов.
+    # Summary and failure count.
     failed_urls: List[str] = []
     for url in CHECK_URLS:
         info = details.get(url)
@@ -650,19 +649,19 @@ def check_external_resources() -> Tuple[bool, Dict[str, Any]]:
         if not info["resource_ok"]:
             failed_urls.append(url)
 
-    # Итоговое решение: не более 1 провала для N >= 2.
+    # Final decision: no more than 1 failure for N >= 2.
     allowed_fails = 1 if total >= 2 else 0
     overall_ok = len(failed_urls) <= allowed_fails
 
     if overall_ok:
         logger.info(
-            "Итог внешних проверок: OK (доступно %d из %d, провалено: %s)",
+            "External checks summary: OK (available %d of %d, failed: %s)",
             total - len(failed_urls), total,
-            ", ".join(failed_urls) if failed_urls else "нет",
+            ", ".join(failed_urls) if failed_urls else "none",
         )
     else:
         logger.critical(
-            "Итог внешних проверок: FAIL (провалено %d из %d: %s)",
+            "External checks summary: FAIL (failed %d of %d: %s)",
             len(failed_urls), total, ", ".join(failed_urls),
         )
 
@@ -670,40 +669,40 @@ def check_external_resources() -> Tuple[bool, Dict[str, Any]]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PassWall2: управление
+# PassWall2: management
 # ─────────────────────────────────────────────────────────────────────────────
 def _current_passwall_node_section() -> Optional[str]:
-    """ID текущей секции узла PassWall2 из passwall2.@global[0].node."""
+    """ID of the current PassWall2 node section from passwall2.@global[0].node."""
     return uci_get(f"{PASSWALL2_GLOBAL}.node")
 
 
 def restart_passwall2() -> bool:
-    """Перезапуск PassWall2 через init-скрипт."""
+    """Restart PassWall2 via the init script."""
     if not os.path.exists(PASSWALL2_INIT):
-        logger.error("Init-скрипт PassWall2 не найден: %s", PASSWALL2_INIT)
+        logger.error("PassWall2 init script not found: %s", PASSWALL2_INIT)
         return False
-    logger.info("Перезапускаю PassWall2 (%s restart)", PASSWALL2_INIT)
+    logger.info("Restarting PassWall2 (%s restart)", PASSWALL2_INIT)
     try:
         res = run_command([PASSWALL2_INIT, "restart"], timeout=NET_CMD_TIMEOUT)
     except RuntimeError as exc:
-        logger.error("Рестарт PassWall2 не выполнен: %s", exc)
+        logger.error("PassWall2 restart failed: %s", exc)
         return False
     if res.returncode != 0:
-        logger.error("PassWall2 restart вернул код %s", res.returncode)
+        logger.error("PassWall2 restart returned code %s", res.returncode)
         return False
-    logger.info("Ожидаю %ss после рестарта PassWall2", INIT_RESTART_WAIT)
+    logger.info("Waiting %ss after the PassWall2 restart", INIT_RESTART_WAIT)
     time.sleep(INIT_RESTART_WAIT)
     return True
 
 
 def vpn_switch_to_direct() -> bool:
-    """Шаг 2: перевод текущего узла PassWall2 в режим _direct."""
+    """Step 2: switch the current PassWall2 node to the _direct mode."""
     anchor = _current_passwall_node_section()
     if not anchor:
-        logger.error("Не удалось получить anchor PassWall2")
+        logger.error("Failed to get the PassWall2 anchor")
         return False
 
-    logger.info("Отключаю VPN: узел '%s' → '%s'", anchor, DIRECT_NODE)
+    logger.info("Disabling VPN: node '%s' → '%s'", anchor, DIRECT_NODE)
     if not uci_set(f"{PASSWALL2_PACKAGE}.{anchor}.default_node", DIRECT_NODE):
         return False
     if not uci_commit():
@@ -712,41 +711,41 @@ def vpn_switch_to_direct() -> bool:
 
 
 def vpn_update_subscriptions() -> bool:
-    """Шаг 3: обновление подписок через Lua-скрипт PassWall2."""
+    """Step 3: update subscriptions via the PassWall2 Lua script."""
     if not os.path.exists(SUBSCRIBE_LUA):
-        logger.error("Скрипт подписок не найден: %s", SUBSCRIBE_LUA)
+        logger.error("Subscription script not found: %s", SUBSCRIBE_LUA)
         return False
 
-    logger.info("Обновляю подписки PassWall2 через %s", SUBSCRIBE_LUA)
+    logger.info("Updating PassWall2 subscriptions via %s", SUBSCRIBE_LUA)
     cmd = [LUA_BIN, SUBSCRIBE_LUA, "start", "all", "manual"]
     try:
         res = run_command(cmd, timeout=SUBSCRIBE_WAIT)
     except RuntimeError as exc:
-        logger.error("Обновление подписок прервано: %s", exc)
+        logger.error("Subscription update interrupted: %s", exc)
         return False
 
     if res.returncode != 0:
         logger.error(
-            "Обновление подписок завершилось с кодом %s, stderr: %s",
+            "Subscription update ended with code %s, stderr: %s",
             res.returncode, (res.stderr or "").strip(),
         )
         return False
-    logger.info("Подписки успешно обновлены")
+    logger.info("Subscriptions updated successfully")
     return True
 
 
 def vpn_set_default_node(node_id: str) -> bool:
-    """Шаг 6: установка узла по умолчанию + рестарт."""
+    """Step 6: set the default node and restart."""
     if not node_id:
-        logger.error("vpn_set_default_node: пустой node_id")
+        logger.error("vpn_set_default_node: empty node_id")
         return False
 
     anchor = _current_passwall_node_section()
     if not anchor:
-        logger.error("Не удалось получить anchor PassWall2")
+        logger.error("Failed to get the PassWall2 anchor")
         return False
 
-    logger.info("Устанавливаю узел по умолчанию: anchor=%s, node_id=%s",
+    logger.info("Setting default node: anchor=%s, node_id=%s",
                 anchor, node_id)
     if not uci_set(f"{PASSWALL2_PACKAGE}.{anchor}.default_node", node_id):
         return False
@@ -756,10 +755,10 @@ def vpn_set_default_node(node_id: str) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Парсинг серверов из UCI
+# Parsing servers from UCI
 # ─────────────────────────────────────────────────────────────────────────────
 def _parse_nodes_ids(uci_dump: str) -> List[str]:
-    """Из дампа `uci show passwall2` извлекает ID секций-узлов (…=nodes)."""
+    """Extracts node section IDs from `uci show passwall2` output (…=nodes)."""
     ids: List[str] = []
     pattern = re.compile(rf"^{re.escape(PASSWALL2_PACKAGE)}\.([A-Za-z0-9_]+)=nodes\s*$")
     for line in uci_dump.splitlines():
@@ -770,7 +769,7 @@ def _parse_nodes_ids(uci_dump: str) -> List[str]:
 
 
 def _extract_value_from_dump(uci_dump: str, section_id: str, key: str) -> Optional[str]:
-    """Достаёт значение параметра секции из дампа uci show."""
+    """Extracts a section parameter value from the `uci show` dump."""
     prefix = f"{PASSWALL2_PACKAGE}.{section_id}.{key}="
     for line in uci_dump.splitlines():
         line = line.strip()
@@ -785,17 +784,17 @@ def _extract_value_from_dump(uci_dump: str, section_id: str, key: str) -> Option
 
 def parse_passwall2_nodes() -> Dict[str, Dict[str, Any]]:
     """
-    Шаг 4: собирает словарь узлов из UCI-конфигурации.
-    Формат:
+    Step 4: builds a dictionary of nodes from the UCI configuration.
+    Format:
         {"<id>": {"id","remarks","address","port","latency":None,"ok":None}, ...}
     """
     dump = uci_show(PASSWALL2_PACKAGE)
     if not dump:
-        logger.error("Пустой дамп UCI для %s", PASSWALL2_PACKAGE)
+        logger.error("Empty UCI dump for %s", PASSWALL2_PACKAGE)
         return {}
 
     ids = _parse_nodes_ids(dump)
-    logger.info("Найдено секций-узлов PassWall2: %d", len(ids))
+    logger.info("Found PassWall2 node sections: %d", len(ids))
 
     servers: Dict[str, Dict[str, Any]] = {}
     for sid in ids:
@@ -804,16 +803,16 @@ def parse_passwall2_nodes() -> Dict[str, Dict[str, Any]]:
         port_s  = _extract_value_from_dump(dump, sid, "port")
 
         if not address:
-            logger.warning("Пропускаю узел %s ('%s'): не задан address", sid, remarks)
+            logger.warning("Skipping node %s ('%s'): address is not set", sid, remarks)
             continue
         try:
             port = int(port_s) if port_s else None
         except ValueError:
-            logger.warning("Пропускаю узел %s ('%s'): некорректный port=%r",
+            logger.warning("Skipping node %s ('%s'): invalid port=%r",
                            sid, remarks, port_s)
             continue
         if port is None:
-            logger.warning("Пропускаю узел %s ('%s'): не задан port", sid, remarks)
+            logger.warning("Skipping node %s ('%s'): port is not set", sid, remarks)
             continue
 
         servers[sid] = {
@@ -824,24 +823,24 @@ def parse_passwall2_nodes() -> Dict[str, Dict[str, Any]]:
             "latency": None,
             "ok": None,
         }
-        logger.info("  Узел: id=%s, remarks='%s', address=%s, port=%s",
+        logger.info("  Node: id=%s, remarks='%s', address=%s, port=%s",
                     sid, remarks, address, port)
 
-    logger.info("Итого пригодных узлов: %d", len(servers))
+    logger.info("Total usable nodes: %d", len(servers))
     return servers
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Замер задержек (параллельно)
+# Latency checks (parallel)
 # ─────────────────────────────────────────────────────────────────────────────
 def _check_one_server(srv: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Проверяет один сервер (tcping + url_test). Возвращает словарь
-    с полями latency / latency_source / ok.
+    Checks a single server (tcping + url_test). Returns a dictionary
+    with fields latency / latency_source / ok.
 
-    Приоритет latency:
-        1. url_test — если он успешен;
-        2. tcping   — только если url_test провалился.
+    Latency priority:
+        1. url_test — if it succeeds;
+        2. tcping   — only if url_test fails.
     """
     address, port = srv["address"], srv["port"]
 
@@ -873,13 +872,13 @@ def measure_servers_latency(
     max_workers: int = MAX_WORKERS,
 ) -> Dict[str, Dict[str, Any]]:
     """
-    Шаг 5: параллельный замер задержек по всем узлам.
-    Общее время ≈ время самого медленного узла.
+    Step 5: parallel latency measurement across all nodes.
+    Total time ≈ time of the slowest node.
     """
     if not servers:
         return {}
 
-    logger.info("Замеряю задержки: %d узлов, параллельно (workers=%d)",
+    logger.info("Measuring latency: %d nodes, in parallel (workers=%d)",
                 len(servers), max_workers)
     results: Dict[str, Dict[str, Any]] = {}
 
@@ -891,7 +890,7 @@ def measure_servers_latency(
             try:
                 results[sid] = fut.result()
             except Exception as exc:  # noqa: BLE001
-                logger.exception("Ошибка проверки узла %s: %s", sid, exc)
+                logger.exception("Error checking node %s: %s", sid, exc)
                 bad = dict(servers[sid])
                 bad.update({"ok": False, "latency": None,
                             "tcping_ok": False, "url_ok": False})
@@ -912,19 +911,19 @@ def measure_servers_latency(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Шаг 6: выбор лучшего сервера
+# Step 6: choosing the best server
 # ─────────────────────────────────────────────────────────────────────────────
 def select_best_server(
     servers: Dict[str, Dict[str, Any]],
     state: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     """
-    Выбирает узел с минимальной задержкой среди доступных.
+    Selects the node with the minimum latency among those available.
 
-    Отсеиваются:
-        * провалившие текущий замер (ok=False);
-        * попавшие в статический чёрный список;
-        * попавшие в динамический чёрный список (state.node_stats).
+    Excluded:
+        * nodes that failed the current measurement (ok=False);
+        * nodes in the static blacklist;
+        * nodes in the dynamic blacklist (state.node_stats).
     """
     available: List[Dict[str, Any]] = []
     skipped: List[Tuple[str, str, str]] = []
@@ -939,16 +938,16 @@ def select_best_server(
         available.append(srv)
 
     for sid, addr, reason in skipped:
-        logger.info("Пропускаю узел %s (%s): %s", sid, addr, reason)
+        logger.info("Skipping node %s (%s): %s", sid, addr, reason)
 
     if not available:
-        logger.error("Нет доступных узлов после фильтрации")
+        logger.error("No available nodes after filtering")
         return None
 
     available.sort(key=lambda s: s["latency"])
     best = available[0]
     logger.info(
-        "Лучший узел: id=%s, remarks='%s', %s:%s, latency=%s (src=%s)",
+        "Best node: id=%s, remarks='%s', %s:%s, latency=%s (src=%s)",
         best["id"], best["remarks"], best["address"], best["port"],
         _fmt_ms(best["latency"]), best.get("latency_source") or "n/a",
     )
@@ -956,10 +955,10 @@ def select_best_server(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Основной сценарий
+# Main scenario
 # ─────────────────────────────────────────────────────────────────────────────
 def _log_banner(title: str) -> None:
-    """Заметный заголовок в логе."""
+    """A prominent log header."""
     line = "─" * 60
     logger.info(line)
     logger.info(title)
@@ -972,9 +971,9 @@ def _finish_with_error(
     extra: Optional[Dict[str, Any]] = None,
 ) -> int:
     """
-    Единообразное завершение с ошибкой: пишет состояние и историю, возвращает 1.
+    Standardized error exit: writes state and history, then returns 1.
     """
-    logger.error("Завершаю с ошибкой: %s", reason)
+    logger.error("Finishing with error: %s", reason)
     state["last_result"] = "fail"
     entry = {"result": "fail", "reason": reason}
     if extra:
@@ -985,33 +984,33 @@ def _finish_with_error(
 
 
 def main() -> int:
-    """Точка входа. Возвращает код выхода процесса."""
-    _log_banner("netwatcher: запуск")
+    """Entry point. Returns the process exit code."""
+    _log_banner("netwatcher: startup")
     validate_config()
     logger.info("PID=%s, euid=%s", os.getpid(), os.geteuid())
 
     for tool in (UCI_BIN, CURL_BIN, LUA_BIN, TCPING_BIN):
         path = which(tool)
         if path:
-            logger.info("Утилита '%s' найдена: %s", tool, path)
+            logger.info("Utility '%s' found: %s", tool, path)
         else:
-            logger.warning("Утилита '%s' не найдена в PATH", tool)
+            logger.warning("Utility '%s' not found in PATH", tool)
 
-    # ── Загружаем состояние ────────────────────────────────────────────
+    # ── Load state ────────────────────────────────────────────────────────
     state = load_state()
     logger.info(
-        "Предыдущее состояние: last_result=%s, consecutive_fails=%s, узлов в статистике=%d",
+        "Previous state: last_result=%s, consecutive_fails=%s, nodes in stats=%d",
         state.get("last_result"),
         state.get("consecutive_fails"),
         len(state.get("node_stats") or {}),
     )
 
-    # ── Шаг 1: проверка связности ──────────────────────────────────────
+    # ── Step 1: connectivity check ─────────────────────────────────────────
     ok, details = check_external_resources()
     state["last_checks"] = details
 
     if ok:
-        logger.info("Связность в порядке — завершаюсь")
+        logger.info("Connectivity is fine — exiting")
         state["last_result"] = "ok"
         state["consecutive_fails"] = 0
         append_history(state, {"result": "ok", "checks": details})
@@ -1021,7 +1020,7 @@ def main() -> int:
     prev_result = state.get("last_result")
     if prev_result != "fail":
         logger.warning(
-            "Связности нет, но предыдущий результат '%s' — жду подтверждения",
+            "There is no connectivity, but the previous result was '%s' — waiting for confirmation",
             prev_result,
         )
         state["last_result"] = "fail"
@@ -1032,30 +1031,29 @@ def main() -> int:
         save_state(state)
         return 0
 
-    logger.warning("Подтверждённый сбой связи (2 запуска подряд) — начинаю переключение")
+    logger.warning("Confirmed connectivity failure (2 runs in a row) — starting failover")
     state["consecutive_fails"] = int(state.get("consecutive_fails") or 0) + 1
 
-    # ── Шаг 2: отключение VPN ──────────────────────────────────────────
+    # ── Step 2: disable VPN ─────────────────────────────────────────────────
     if not vpn_switch_to_direct():
-        return _finish_with_error(state, "не удалось перевести PassWall2 в _direct")
+        return _finish_with_error(state, "failed to switch PassWall2 to _direct")
 
-    # ── Шаг 3: обновление подписок ────────────────────────────────────
+    # ── Step 3: update subscriptions ───────────────────────────────────────
     if not vpn_update_subscriptions():
-        return _finish_with_error(state, "обновление подписок провалилось")
+        return _finish_with_error(state, "subscription update failed")
 
-    # ── Шаг 4: парсинг узлов ──────────────────────────────────────────
+    # ── Step 4: parse nodes ─────────────────────────────────────────────────
     servers = parse_passwall2_nodes()
     if not servers:
-        return _finish_with_error(state, "список узлов пуст")
+        return _finish_with_error(state, "node list is empty")
 
-    # ── Шаг 5: замер задержек ─────────────────────────────────────────
+    # ── Step 5: measure latency ────────────────────────────────────────────
     servers = measure_servers_latency(servers)
 
-    # Обновляем статистику ДО выбора, чтобы динамический чёрный список
-    # учитывался уже в этом запуске.
+    # Update stats BEFORE selection so the dynamic blacklist is considered in this run.
     update_node_stats(state, servers)
 
-    # ── Шаг 6: выбор и установка ──────────────────────────────────────
+    # ── Step 6: choose and set ──────────────────────────────────────────────
     best = select_best_server(servers, state)
     if not best:
         summary = {
@@ -1069,17 +1067,17 @@ def main() -> int:
         }
         return _finish_with_error(
             state,
-            "ни один узел не прошёл проверку / все в чёрном списке",
+            "no node passed validation / all are blacklisted",
             extra={"servers": summary},
         )
 
     if not vpn_set_default_node(best["id"]):
         return _finish_with_error(
             state,
-            f"не удалось установить узел {best['id']} по умолчанию",
+            f"failed to set default node {best['id']}",
         )
 
-    # Успех.
+    # Success.
     state["last_result"] = "switched"
     state["selected_server"] = {
         "id": best["id"],
@@ -1107,21 +1105,21 @@ def main() -> int:
     save_state(state)
 
     _log_banner(
-        f"netwatcher: переключено на {best['id']} ('{best['remarks']}', "
-        f"{best['address']}:{best['port']}) задержка={_fmt_ms(best['latency'])}"
+        f"netwatcher: switched to {best['id']} ('{best['remarks']}', "
+        f"{best['address']}:{best['port']}) latency={_fmt_ms(best['latency'])}"
     )
     return 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Запуск
+# Startup
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        logger.warning("Прервано пользователем (Ctrl+C)")
+        logger.warning("Interrupted by user (Ctrl+C)")
         sys.exit(130)
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Непредвиденная ошибка: %s", exc)
+        logger.exception("Unexpected error: %s", exc)
         sys.exit(1)
