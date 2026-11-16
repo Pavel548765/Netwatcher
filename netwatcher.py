@@ -32,6 +32,15 @@ except ImportError as exc:
     )
     sys.exit(2)
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging — import the ready instance from logger.py
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from logger import logger  # type: ignore  # noqa: E402
+except ImportError as exc:
+    print(f"FATAL: failed to import logger module: {exc}", file=sys.stderr)
+    sys.exit(2)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constants from data.py
@@ -70,44 +79,6 @@ HISTORY_LIMIT: int = getattr(CONFIG, "HISTORY_LIMIT", 100)
 
 # Valid HTTP codes for a resource that responded correctly.
 VALID_REDIRECT_CODES = (301, 302, 307, 308)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Logging
-# ─────────────────────────────────────────────────────────────────────────────
-def setup_logging() -> logging.Logger:
-    """
-    Configures the script's root logger. The level is always INFO.
-    Records go to the file /var/log/netwatcher/netwatcher.log and to stdout.
-    """
-    os.makedirs(LOG_DIR, exist_ok=True)
-
-    logger = logging.getLogger("netwatcher")
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-    if logger.handlers:
-        return logger
-
-    fmt = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
-    fh.setFormatter(fmt)
-    fh.setLevel(logging.INFO)
-    logger.addHandler(fh)
-
-    sh = logging.StreamHandler(sys.stdout)
-    sh.setFormatter(fmt)
-    sh.setLevel(logging.INFO)
-    logger.addHandler(sh)
-
-    return logger
-
-
-logger = setup_logging()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
