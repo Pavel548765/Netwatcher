@@ -81,6 +81,14 @@ BLACKLIST_DURATION_MIN = 30     # for how many minutes
 HISTORY_LIMIT = 100   # how many recent run records to keep
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Secrets (if needed, store them here)
+# Logging
 # ─────────────────────────────────────────────────────────────────────────────
-# SUBSCRIPTION_KEY = "..."
+# 0 - DEBUG (full output, all levels)
+# 1 - INFO  (default)
+# 2 - WARNING
+# 3 - CRITICAL
+LOG_LEVEL = 1
+
+# Colorize the log file as well. If False, the file is written as plain text
+# (easier to grep / parse with external tools). Default: True.
+LOG_FILE_COLOR = True

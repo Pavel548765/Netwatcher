@@ -153,13 +153,17 @@ def validate_config() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 def uci_get(path: str) -> Optional[str]:
     """Reads a UCI parameter, None if missing or on error."""
+    logger.debug("uci get %s", path)
     try:
         res = run_command([UCI_BIN, "-q", "get", path], timeout=10)
     except RuntimeError:
         return None
     if res.returncode != 0:
+        logger.debug("uci get %s → exit %d", path, res.returncode)
         return None
-    return (res.stdout or "").strip() or None
+    value = (res.stdout or "").strip() or None
+    logger.debug("uci get %s → %r", path, value)
+    return value
 
 
 def uci_set(path: str, value: str) -> bool:
@@ -192,6 +196,7 @@ def uci_commit(package: str = PASSWALL2_PACKAGE) -> bool:
 
 def uci_show(package: str = PASSWALL2_PACKAGE) -> str:
     """Full dump of `uci show <package>`."""
+    logger.debug("uci show %s", package)
     try:
         res = run_command([UCI_BIN, "show", package], timeout=NET_CMD_TIMEOUT)
     except RuntimeError:
@@ -199,7 +204,9 @@ def uci_show(package: str = PASSWALL2_PACKAGE) -> str:
     if res.returncode != 0:
         logger.error("uci show %s failed", package)
         return ""
-    return res.stdout or ""
+    dump = res.stdout or ""
+    logger.debug("uci show %s → %d bytes", package, len(dump))
+    return dump
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -538,6 +545,8 @@ def _check_single_url(url: str) -> Tuple[str, Dict[str, Any]]:
                 https_ok, http_code, resource_ok, reason.
     """
     host, port = _extract_host_port(url)
+    logger.debug("Checking %s (%s:%s)", url, host, port)
+
     tcp_ok, tcp_lat = tcping(host, port)
     got_response, http_code = curl_https_check(url)
 
@@ -545,6 +554,11 @@ def _check_single_url(url: str) -> Tuple[str, Dict[str, Any]]:
     https_ok = got_response and _is_http_code_ok(http_code)
 
     resource_ok, reason = evaluate_resource(tcp_ok, http_code)
+
+    logger.debug(
+        "  %s → tcping=%s/%s, https=%s/%s",
+        url, tcp_ok, _fmt_ms(tcp_lat), got_response, http_code,
+    )
 
     return url, {
         "host": host,
@@ -668,6 +682,7 @@ def restart_passwall2() -> bool:
 
 def vpn_switch_to_direct() -> bool:
     """Step 2: switch the current PassWall2 node to the _direct mode."""
+    logger.debug("vpn_switch_to_direct: begin")
     anchor = _current_passwall_node_section()
     if not anchor:
         logger.error("Failed to get the PassWall2 anchor")
@@ -683,6 +698,7 @@ def vpn_switch_to_direct() -> bool:
 
 def vpn_update_subscriptions() -> bool:
     """Step 3: update subscriptions via the PassWall2 Lua script."""
+    logger.debug("vpn_update_subscriptions: begin")
     if not os.path.exists(SUBSCRIBE_LUA):
         logger.error("Subscription script not found: %s", SUBSCRIBE_LUA)
         return False
@@ -707,6 +723,7 @@ def vpn_update_subscriptions() -> bool:
 
 def vpn_set_default_node(node_id: str) -> bool:
     """Step 6: set the default node and restart."""
+    logger.debug("vpn_set_default_node: node_id=%s", node_id)
     if not node_id:
         logger.error("vpn_set_default_node: empty node_id")
         return False
@@ -773,6 +790,11 @@ def parse_passwall2_nodes() -> Dict[str, Dict[str, Any]]:
         address = _extract_value_from_dump(dump, sid, "address")
         port_s  = _extract_value_from_dump(dump, sid, "port")
 
+        logger.debug(
+        "Raw node %s: remarks=%r, address=%r, port=%r",
+        sid, remarks, address, port_s,
+        )
+
         if not address:
             logger.warning("Skipping node %s ('%s'): address is not set", sid, remarks)
             continue
@@ -804,6 +826,7 @@ def parse_passwall2_nodes() -> Dict[str, Dict[str, Any]]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Latency checks (parallel)
 # ─────────────────────────────────────────────────────────────────────────────
+
 def _check_one_server(srv: Dict[str, Any]) -> Dict[str, Any]:
     """
     Checks a single server (tcping + url_test). Returns a dictionary
@@ -814,9 +837,15 @@ def _check_one_server(srv: Dict[str, Any]) -> Dict[str, Any]:
         2. tcping   — only if url_test fails.
     """
     address, port = srv["address"], srv["port"]
+    logger.debug("%s: checking %s:%s", srv.get("id"), address, port)
 
     tcp_ok, tcp_lat = tcping(address, port)
     url_ok, url_lat = url_test(address, port)
+
+    logger.debug(
+        "%s: tcping=%s/%s, url_test=%s/%s",
+        srv.get("id"), tcp_ok, _fmt_ms(tcp_lat), url_ok, _fmt_ms(url_lat),
+    )
 
     if url_ok and url_lat is not None:
         latency, source, ok = url_lat, "url_test", True
@@ -914,7 +943,12 @@ def select_best_server(
     if not available:
         logger.error("No available nodes after filtering")
         return None
-
+    
+    logger.debug(
+        "Available candidates (id, latency_ms): %s",
+        [(s["id"], round(s["latency"], 1)) for s in available],
+    )
+    
     available.sort(key=lambda s: s["latency"])
     best = available[0]
     logger.info(
@@ -968,7 +1002,12 @@ def main() -> int:
             logger.warning("Utility '%s' not found in PATH", tool)
 
     # ── Load state ────────────────────────────────────────────────────────
+    logger.debug("Step 0: loading state")
     state = load_state()
+    logger.debug(
+        "Loaded state: keys=%s, last_run=%s",
+        list(state.keys()), state.get("last_run"),
+    )
     logger.info(
         "Previous state: last_result=%s, consecutive_fails=%s, nodes in stats=%d",
         state.get("last_result"),
@@ -977,6 +1016,7 @@ def main() -> int:
     )
 
     # ── Step 1: connectivity check ─────────────────────────────────────────
+    logger.debug("Step 1: external connectivity check")
     ok, details = check_external_resources()
     state["last_checks"] = details
 
@@ -1006,25 +1046,32 @@ def main() -> int:
     state["consecutive_fails"] = int(state.get("consecutive_fails") or 0) + 1
 
     # ── Step 2: disable VPN ─────────────────────────────────────────────────
+    logger.debug("Step 2: switching PassWall2 to _direct")
     if not vpn_switch_to_direct():
         return _finish_with_error(state, "failed to switch PassWall2 to _direct")
 
     # ── Step 3: update subscriptions ───────────────────────────────────────
+    logger.debug("Step 3: updating subscriptions")
     if not vpn_update_subscriptions():
         return _finish_with_error(state, "subscription update failed")
 
     # ── Step 4: parse nodes ─────────────────────────────────────────────────
+    logger.debug("Step 4: parsing PassWall2 nodes")
     servers = parse_passwall2_nodes()
     if not servers:
         return _finish_with_error(state, "node list is empty")
+    logger.debug("Parsed %d nodes", len(servers))
 
     # ── Step 5: measure latency ────────────────────────────────────────────
+    logger.debug("Step 5: measuring latency")
     servers = measure_servers_latency(servers)
 
     # Update stats BEFORE selection so the dynamic blacklist is considered in this run.
+    logger.debug("Updating per-node stats")
     update_node_stats(state, servers)
 
     # ── Step 6: choose and set ──────────────────────────────────────────────
+    logger.debug("Step 6: selecting best server")
     best = select_best_server(servers, state)
     if not best:
         summary = {
@@ -1042,6 +1089,7 @@ def main() -> int:
             extra={"servers": summary},
         )
 
+    logger.debug("Setting default node %s", best["id"])
     if not vpn_set_default_node(best["id"]):
         return _finish_with_error(
             state,

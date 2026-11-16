@@ -5,7 +5,7 @@ Python script for automatic replacement of a non-working VPN server and renewal 
 
 ## Project files:
 - /usr/share/my/netwatcher.py — This script. (Must be created before launching)
-- /usr/share/my/logger.py — Custom logging module (Must be created before launching)
+- /usr/share/my/logger.py — Custom logging module. (Must be created before launching)
 - /etc/netwatcher/data.py — Configuration and secrets. (Must be created before launching)
 - /var/log/netwatcher/state.json — The state between launches. (It's created automatically if it's missing)
 - /var/log/netwatcher/netwatcher.log — Log. (It's created automatically if it's missing)

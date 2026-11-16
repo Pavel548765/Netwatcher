@@ -3,11 +3,19 @@
 logger.py — logging module for netwatcher.
 
 Provides:
-    * ColoredFormatter  — ANSI coloring for terminals.
-    * PlainFormatter    — plain format for the log file.
+    * ColoredFormatter  — ANSI coloring (used for both file and stdout).
+    * PlainFormatter    — plain format (fallback when colors are disabled).
     * NetwatcherLogger  — wrapper around logging.Logger exposing all levels
                           (debug/info/warning/error/critical/fatal/exception).
     * Module-level instance `logger`, configured from data.py.
+
+Levels are controlled by `LOG_LEVEL` in data.py:
+    0 — DEBUG (full output)
+    1 — INFO  (default)
+    2 — WARNING
+    3 — CRITICAL
+The `NETWATCHER_LOG_LEVEL` env var overrides `LOG_LEVEL` when set
+(useful for one-off debugging without editing data.py).
 """
 
 from __future__ import annotations
@@ -27,7 +35,18 @@ logging.addLevelName(FATAL_LEVEL, "FATAL")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Paths from data.py (with fallback defaults)
+# Map numeric LOG_LEVEL from data.py → logging levels
+# ─────────────────────────────────────────────────────────────────────────────
+LEVEL_MAP = {
+    0: logging.DEBUG,     # full output
+    1: logging.INFO,      # default
+    2: logging.WARNING,
+    3: logging.CRITICAL,
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Load config from data.py (with fallback defaults)
 # ─────────────────────────────────────────────────────────────────────────────
 _CONFIG_DIR = os.environ.get("NETWATCHER_CONFIG_DIR", "/etc/netwatcher")
 if _CONFIG_DIR not in sys.path:
@@ -40,9 +59,13 @@ try:
     _DEFAULT_LOG_FILE: str = getattr(
         _CONFIG, "LOG_FILE", os.path.join(_DEFAULT_LOG_DIR, "netwatcher.log")
     )
+    _LOG_LEVEL_NUM: int = int(getattr(_CONFIG, "LOG_LEVEL", 1))
+    _LOG_FILE_COLOR: bool = bool(getattr(_CONFIG, "LOG_FILE_COLOR", True))
 except ImportError:
     _DEFAULT_LOG_DIR = "/var/log/netwatcher"
     _DEFAULT_LOG_FILE = os.path.join(_DEFAULT_LOG_DIR, "netwatcher.log")
+    _LOG_LEVEL_NUM = 1
+    _LOG_FILE_COLOR = True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -67,7 +90,7 @@ def _stdout_supports_color(stream: Any) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 class ColoredFormatter(logging.Formatter):
     """
-    Formatter for terminals.
+    Formatter that produces ANSI-colored output.
 
     * The whole level tag is colored, including brackets: `[INFO]`.
     * Date is contrast-heavy (bold cyan); time parts `H:M:S` get a soft
@@ -127,10 +150,10 @@ class ColoredFormatter(logging.Formatter):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Plain formatter for the log file
+# Plain formatter (used when colors are disabled)
 # ─────────────────────────────────────────────────────────────────────────────
 class PlainFormatter(logging.Formatter):
-    """Formatter without ANSI codes — used for the log file."""
+    """Formatter without ANSI codes."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -154,22 +177,35 @@ class NetwatcherLogger:
         self._configured = False
 
     # ── Setup ──────────────────────────────────────────────────────────
-    def setup(self, log_dir: str, log_file: str) -> "NetwatcherLogger":
+    def setup(
+        self,
+        log_dir: str,
+        log_file: str,
+        *,
+        level_num: int = 1,
+        colorize_file: bool = True,
+    ) -> "NetwatcherLogger":
         """
-        Configures the file and stdout handlers. Idempotent.
-        The level comes from NETWATCHER_LOG_LEVEL (default INFO).
+        Configures file and stdout handlers. Idempotent.
+
+        :param log_dir:       directory for the log file;
+        :param log_file:      full path to the log file;
+        :param level_num:     0=DEBUG, 1=INFO, 2=WARNING, 3=CRITICAL;
+        :param colorize_file: if True, the log file also gets ANSI colors.
         """
         if self._configured:
             return self
 
         os.makedirs(log_dir, exist_ok=True)
 
-        # Logging level
-        level_name = os.environ.get("NETWATCHER_LOG_LEVEL", "INFO").upper()
-        if level_name == "FATAL":
-            level: int = FATAL_LEVEL
-        else:
-            level = getattr(logging, level_name, logging.INFO)
+        # Resolve level. Env var overrides the config value.
+        level: int = LEVEL_MAP.get(level_num, logging.INFO)
+        env_level = os.environ.get("NETWATCHER_LOG_LEVEL", "").upper()
+        if env_level:
+            if env_level == "FATAL":
+                level = FATAL_LEVEL
+            else:
+                level = getattr(logging, env_level, level)
 
         self._logger.setLevel(level)
         self._logger.propagate = False
@@ -178,13 +214,16 @@ class NetwatcherLogger:
         for h in list(self._logger.handlers):
             self._logger.removeHandler(h)
 
-        # File — no color
+        # File handler — colored or plain, depending on config
         fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setLevel(level)
-        fh.setFormatter(PlainFormatter())
+        if colorize_file:
+            fh.setFormatter(ColoredFormatter())
+        else:
+            fh.setFormatter(PlainFormatter())
         self._logger.addHandler(fh)
 
-        # Stdout — with color only if it's a TTY
+        # Stdout handler — colored only if it's a TTY
         sh = logging.StreamHandler(sys.stdout)
         sh.setLevel(level)
         if _stdout_supports_color(sys.stdout):
@@ -231,4 +270,9 @@ class NetwatcherLogger:
 # ─────────────────────────────────────────────────────────────────────────────
 # Module-level instance
 # ─────────────────────────────────────────────────────────────────────────────
-logger = NetwatcherLogger().setup(_DEFAULT_LOG_DIR, _DEFAULT_LOG_FILE)
+logger = NetwatcherLogger().setup(
+    _DEFAULT_LOG_DIR,
+    _DEFAULT_LOG_FILE,
+    level_num=_LOG_LEVEL_NUM,
+    colorize_file=_LOG_FILE_COLOR,
+)
