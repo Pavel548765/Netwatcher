@@ -9,12 +9,12 @@ The actual work is delegated to the modules:
 
 import os
 import sys
-
-from config import UCI_BIN, CURL_BIN, LUA_BIN, TCPING_BIN, validate_config
 from logger import logger
-from utils import which
-from state import load_state, save_state, append_history
 from checks import check_external_resources
+from nodes import measure_servers_latency, select_best_server
+from data import UCI_BIN, CURL_BIN, LUA_BIN, TCPING_BIN, validate_config
+from utils import which, fmt_ms
+from state import load_state, save_state, append_history, update_node_stats
 from passwall import (
     parse_passwall2_nodes,
     vpn_set_default_node,
@@ -22,7 +22,6 @@ from passwall import (
     vpn_update_subscriptions,
 )
 from nodes import measure_servers_latency, select_best_server
-from utils import fmt_ms
 
 
 def _log_banner(title: str) -> None:
