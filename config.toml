@@ -1,0 +1,125 @@
+# =============================================================================
+# netwatcher configuration file
+# =============================================================================
+# This file contains ONLY user-tunable parameters.
+# Hard-coded program constants live in /usr/share/netwatcher/data.py.
+#
+# Permissions: 600, owner: root (may contain secrets).
+# No restart required after editing — the file is read at program start.
+# =============================================================================
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────────────
+[paths]
+# Directory for runtime files (log + state).
+log_dir = "/var/log/netwatcher"
+
+# Path to the log file. Leave empty to use <log_dir>/netwatcher.log.
+log_file = "/var/log/netwatcher/netwatcher.log"
+
+# Path to the state file. Leave empty to use <log_dir>/state.json.
+state_file = "/var/log/netwatcher/state.json"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# External resources for connectivity checks (step 1 of the algorithm)
+# ─────────────────────────────────────────────────────────────────────────────
+[checks]
+# URLs that must be reachable through the VPN.
+# If more than one fails, the program switches to failover.
+urls = [
+    "https://copilot.microsoft.com/",
+    "https://t.me/",
+    "https://youtube.com/",
+]
+
+# Target for url-test nodes (currently informational, not used directly).
+url_test_target = "https://www.google.com/generate_204"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# External utilities
+# ─────────────────────────────────────────────────────────────────────────────
+[utilities]
+# Names or paths to the binaries. Plain names are resolved through $PATH.
+tcping = "tcping"
+curl   = "curl"
+uci    = "uci"
+lua    = "lua"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Timeouts (seconds)
+# ─────────────────────────────────────────────────────────────────────────────
+[timeouts]
+# tcping single attempt timeout.
+tcping = 5
+
+# curl HTTP request timeout.
+curl = 10
+
+# Generic timeout for `uci`, init scripts, etc.
+net_cmd = 30
+
+# Maximum time to wait for the subscription update Lua script.
+subscribe = 45
+
+# Pause after a PassWall2 restart to let it settle.
+restart = 8
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PassWall2 — paths (may vary between firmware builds)
+# ─────────────────────────────────────────────────────────────────────────────
+[passwall2]
+# Path to the PassWall2 init script.
+init = "/etc/init.d/passwall2"
+
+# Path to the subscription update Lua script.
+subscribe_lua = "/usr/share/passwall2/subscribe.lua"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parallelism
+# ─────────────────────────────────────────────────────────────────────────────
+[parallelism]
+# How many nodes are checked simultaneously.
+# For routers with 128 MB of RAM, 8 is normal; with many nodes — 16-32.
+max_workers = 8
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Server blacklist
+# ─────────────────────────────────────────────────────────────────────────────
+[blacklist]
+# Static blacklist — addresses that should NEVER be selected.
+# Exact match against the `address` field from UCI.
+static_addresses = [
+    # "example.com",
+    # "1.2.3.4",
+]
+
+# A node failing `threshold` checks in a row is excluded for `duration_min` minutes.
+threshold    = 3
+duration_min = 30
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# State
+# ─────────────────────────────────────────────────────────────────────────────
+[state]
+# How many recent run records to keep in history.
+history_limit = 100
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging
+# ─────────────────────────────────────────────────────────────────────────────
+[logging]
+# 0 = DEBUG (full output), 1 = INFO (default), 2 = WARNING, 3 = CRITICAL
+level = 1
+
+# Colorize the log file too. Set to false for plain text (easier to grep / parse).
+file_color = true
