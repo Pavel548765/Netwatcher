@@ -9,7 +9,6 @@ import shutil
 import subprocess
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
-from config import NET_CMD_TIMEOUT
 from data import NET_CMD_TIMEOUT
 from logger import logger
 
