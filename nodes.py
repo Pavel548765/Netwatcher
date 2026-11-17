@@ -7,13 +7,12 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
-
 from checks import tcping, url_test
-from config import MAX_WORKERS
 from logger import logger
 from state import is_node_blacklisted
 from utils import fmt_ms
-from data import *
+from checks import tcping, url_test
+from data import MAX_WORKERS
 
 
 def _check_one_server(srv: Dict[str, Any]) -> Dict[str, Any]:
