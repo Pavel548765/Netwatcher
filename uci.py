@@ -6,11 +6,10 @@ uci.py — thin wrapper around the OpenWrt `uci` utility.
 from __future__ import annotations
 
 from typing import Optional
-
-from config import NET_CMD_TIMEOUT, PASSWALL2_PACKAGE, UCI_BIN
+from utils import run_command
+from data import NET_CMD_TIMEOUT, PASSWALL2_PACKAGE, UCI_BIN
 from logger import logger
 from utils import run_command
-from data import *
 
 
 def uci_get(path: str) -> Optional[str]:
