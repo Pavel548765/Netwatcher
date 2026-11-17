@@ -10,9 +10,10 @@ import os
 import re
 import time
 from typing import Any, Dict, List, Optional
-from data import *
-
-from config import (
+from logger import logger
+from uci import uci_commit, uci_get, uci_set, uci_show
+from utils import run_command
+from data import (
     DIRECT_NODE,
     INIT_RESTART_WAIT,
     LUA_BIN,
@@ -23,10 +24,6 @@ from config import (
     SUBSCRIBE_LUA,
     SUBSCRIBE_WAIT,
 )
-from logger import logger
-from uci import uci_commit, uci_get, uci_set, uci_show
-from utils import run_command
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Management
