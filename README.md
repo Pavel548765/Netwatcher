@@ -1,30 +1,120 @@
 # Netwatcher
-Python script for automatic replacement of a non-working VPN server and renewal of provider's subscription in passwall2
+
+Python program for automatic replacement of a non-working VPN server and
+renewal of the provider's subscription in PassWall2.
 
 # Description and structure
 
-## Project files:
-- /usr/share/my/netwatcher.py — This script. (Must be created before launching)
-- /usr/share/my/logger.py — Custom logging module. (Must be created before launching)
-- /etc/netwatcher/data.py — Configuration and secrets. (Must be created before launching)
-- /var/log/netwatcher/state.json — The state between launches. (It's created automatically if it's missing)
-- /var/log/netwatcher/netwatcher.log — Log. (It's created automatically if it's missing)
+## Project files
 
-## The script performs the following steps:
+Program files (all in the same directory):
 
-1. Checks the network availability of Internet resources that are accessible via VPN (listed in the CHECK_URLS list in data.py ). If the check is successful, the script ends in state.A json entry is entered marked "result": "ok".
-2. In case of an unsuccessful availability check (more than one error), the current server changes to _direct (direct traffic).
-3. After that, all subscription links are updated.
-4. Next, the server with the best performance in tcping and http get verification is selected (the blacklist and previous non-working nodes are taken into account)
-5. After that, the server is installed back to the shut node.
+- `/usr/share/netwatcher/netwatcher.py` — entry point (`main()` only).
+- `/usr/share/netwatcher/data.py`       — parses `config.toml`, exposes all constants, validates config.
+- `/usr/share/netwatcher/logger.py`     — colored logging module (self-contained).
+- `/usr/share/netwatcher/utils.py`      — `run_command`, `which`, `fmt_ms`, `extract_host_port`.
+- `/usr/share/netwatcher/uci.py`        — `uci get/set/commit/show` wrappers.
+- `/usr/share/netwatcher/state.py`      — `state.json`: load/save/history, blacklist, node stats.
+- `/usr/share/netwatcher/checks.py`     — network checks: `tcping`, `curl`, `url_test`, HTTP eval, external resources.
+- `/usr/share/netwatcher/passwall.py`   — PassWall2: restart, switch to `_direct`, subscription update, set default node, parse nodes.
+- `/usr/share/netwatcher/nodes.py`      — node latency measurement + best-node selection.
 
-# Installation
+Config (contains secrets, permissions `600`, owner `root`):
 
-Make sure that you have the necessary utilities installed to run the script!
-[tcping, curl, uci, lua, python3]
+- `/etc/netwatcher/config.toml`         — user-tunable parameters.
 
-To run the script automatically on a schedule, use cron:
+Runtime files (created automatically):
+
+- `/var/log/netwatcher/state.json`      — state between runs.
+- `/var/log/netwatcher/netwatcher.log`  — log file.
+
+## Module responsibilities
+
+| Module         | Responsibility                                                       |
+|----------------|----------------------------------------------------------------------|
+| `data.py`      | Parses `config.toml`, exposes all constants, `validate_config()`.    |
+| `logger.py`    | Colored logging (levels, file + stdout, `logging.level` control).    |
+| `utils.py`     | Generic helpers (subprocess wrapper, formatting, path lookup).       |
+| `uci.py`       | Thin wrapper around the `uci` binary.                                |
+| `state.py`     | Persistence of `state.json`, blacklist, cumulative node stats.       |
+| `checks.py`    | Low-level network checks (TCP / HTTPS / socket) + external aggregation. |
+| `passwall.py`  | All PassWall2 operations + parsing of `uci show passwall2`.          |
+| `nodes.py`     | Node-level latency measurement + best-node selection.                |
+| `netwatcher.py`| Orchestrator: `main()` + startup block.                              |
+
+## Configuration
+
+All user-tunable parameters live in `/etc/netwatcher/config.toml`.
+
+What goes there:
+
+- **`[paths]`** — log/state file locations.
+- **`[checks]`** — URLs for external connectivity checks.
+- **`[utilities]`** — binary names/paths (`tcping`, `curl`, `uci`, `lua`).
+- **`[timeouts]`** — all timeout values (seconds).
+- **`[passwall2]`** — init script and subscribe.lua paths.
+- **`[parallelism]`** — worker count for parallel checks.
+- **`[blacklist]`** — static addresses, thresholds.
+- **`[state]`** — history limit.
+- **`[logging]`** — log level (`0/1/2/3`), whether to colorize the log file.
+
+What is **hard-coded** in `data.py` (not user-tunable):
+
+- `PASSWALL2_PACKAGE = "passwall2"`
+- `PASSWALL2_GLOBAL  = "passwall2.@global[0]"`
+- `DIRECT_NODE       = "_direct"`
+- `VALID_REDIRECT_CODES = (301, 302, 307, 308)`
+
+These are part of the program's contract with PassWall2 and don't
+normally need to change.
+
+## Logging
+
+Controlled by the `[logging]` section in `config.toml`:
+
+```toml
+[logging]
+level = 1          # 0=DEBUG, 1=INFO (default), 2=WARNING, 3=CRITICAL
+file_color = true  # colorize the log file too (false for plain text)
+Environment overrides:
+
+NETWATCHER_LOG_LEVEL=DEBUG — one-off level override (doesn't touch config.toml).
+
+NETWATCHER_COLOR=1 — force ANSI colors even when piping (less -R).
+
+NETWATCHER_CONFIG_DIR=/path — alternative config directory (default /etc/netwatcher).
+```
+To read a colored log file: less -R /var/log/netwatcher/netwatcher.log.
+
+If you plan to grep or process the log file with external tools, set
+file_color = false in config.toml — otherwise ANSI sequences will
+break pattern matching.
+
+Algorithm (steps)
+Checks the availability of the external resources from checks.urls.
+If successful — exits with "result": "ok" in state.
+
+On an unsuccessful check (more than one failure), switches the current
+PassWall2 node to _direct.
+
+Updates all subscription links.
+
+Selects the best node by tcping + socket url_test results, honoring
+the static and dynamic blacklists.
+
+Sets the chosen node as the default and restarts PassWall2.
+
+## Installation
+Make sure the required utilities are installed:
+
+
+tcping, curl, uci, lua, python3 (3.11+)
+Copy all *.py files from this repository (except data.py) into
+/usr/share/netwatcher/. Then copy data.py there as well. Place
+config.toml into /etc/netwatcher/ with permissions 600, owner root.
+
+To run the program on a schedule, use cron:
 
 __*/2 * * * * flock -n /tmp/netwatcher.lock /usr/bin/python3.13 /usr/share/netwatcher/netwatcher.py >> /dev/null 2>&1__
 
-(running every two minutes using flock to avoid parallel startup)
+(runs every two minutes, flock prevents parallel execution)
