@@ -9,13 +9,13 @@ Provides:
                           (debug/info/warning/error/critical/fatal/exception).
     * Module-level instance `logger`, configured from data.py.
 
-Levels are controlled by `LOG_LEVEL` in data.py:
+Levels are controlled by `logging.level` in config.toml:
     0 — DEBUG (full output)
     1 — INFO  (default)
     2 — WARNING
     3 — CRITICAL
-The `NETWATCHER_LOG_LEVEL` env var overrides `LOG_LEVEL` when set
-(useful for one-off debugging without editing data.py).
+The `NETWATCHER_LOG_LEVEL` env var overrides the config value when set
+(useful for one-off debugging without editing config.toml).
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ logging.addLevelName(FATAL_LEVEL, "FATAL")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Map numeric LOG_LEVEL from data.py → logging levels
+# Map numeric level from config.toml → logging levels
 # ─────────────────────────────────────────────────────────────────────────────
 LEVEL_MAP = {
     0: logging.DEBUG,     # full output
@@ -46,21 +46,18 @@ LEVEL_MAP = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Load config from data.py (with fallback defaults)
+# Read config from data.py (which parses config.toml)
+# data.py lives in the same directory as logger.py — plain import works.
 # ─────────────────────────────────────────────────────────────────────────────
-_CONFIG_DIR = os.environ.get("NETWATCHER_CONFIG_DIR", "/etc/netwatcher")
-if _CONFIG_DIR not in sys.path:
-    sys.path.insert(0, _CONFIG_DIR)
-
 try:
-    import data as _CONFIG  # type: ignore
+    import data as _DATA
 
-    _DEFAULT_LOG_DIR: str = getattr(_CONFIG, "LOG_DIR", "/var/log/netwatcher")
+    _DEFAULT_LOG_DIR: str = getattr(_DATA, "LOG_DIR", "/var/log/netwatcher")
     _DEFAULT_LOG_FILE: str = getattr(
-        _CONFIG, "LOG_FILE", os.path.join(_DEFAULT_LOG_DIR, "netwatcher.log")
+        _DATA, "LOG_FILE", os.path.join(_DEFAULT_LOG_DIR, "netwatcher.log")
     )
-    _LOG_LEVEL_NUM: int = int(getattr(_CONFIG, "LOG_LEVEL", 1))
-    _LOG_FILE_COLOR: bool = bool(getattr(_CONFIG, "LOG_FILE_COLOR", True))
+    _LOG_LEVEL_NUM: int = int(getattr(_DATA, "LOG_LEVEL", 1))
+    _LOG_FILE_COLOR: bool = bool(getattr(_DATA, "LOG_FILE_COLOR", True))
 except ImportError:
     _DEFAULT_LOG_DIR = "/var/log/netwatcher"
     _DEFAULT_LOG_FILE = os.path.join(_DEFAULT_LOG_DIR, "netwatcher.log")
