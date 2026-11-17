@@ -10,16 +10,14 @@ import os
 import tempfile
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
-from data import *
-
-from config import (
+from logger import logger
+from data import (
     BLACKLIST_DURATION_MIN,
     BLACKLIST_THRESHOLD,
     HISTORY_LIMIT,
     SERVER_BLACKLIST_ADDRESSES,
     STATE_FILE,
 )
-from logger import logger
 
 
 def _default_state() -> Dict[str, Any]:
