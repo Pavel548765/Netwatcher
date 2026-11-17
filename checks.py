@@ -11,9 +11,9 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
-from data import *
-
-from config import (
+from logger import logger
+from utils import extract_host_port, fmt_ms, run_command
+from data import (
     CHECK_URLS,
     CURL_BIN,
     CURL_TIMEOUT,
@@ -22,8 +22,7 @@ from config import (
     TCPING_TIMEOUT,
     VALID_REDIRECT_CODES,
 )
-from logger import logger
-from utils import extract_host_port, fmt_ms, run_command
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
