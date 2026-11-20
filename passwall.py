@@ -33,6 +33,60 @@ def _current_passwall_node_section() -> Optional[str]:
     return uci_get(f"{PASSWALL2_GLOBAL}.node")
 
 
+def check_passwall2_ready() -> bool:
+    """
+    Preflight: verifies that PassWall2 is installed and a shunt node exists.
+
+    Checks:
+        1. The init script exists (PassWall2 installed).
+        2. `uci show passwall2` returns data (package configured).
+        3. `passwall2.@global[0].node` is non-empty (shunt referenced).
+        4. The referenced shunt section actually exists in the UCI dump.
+
+    Returns True if all checks pass. On failure — logs FATAL and returns
+    False; caller must abort without touching state or PassWall2.
+    """
+    # 1. Init script
+    if not os.path.exists(PASSWALL2_INIT):
+        logger.fatal(
+            "PassWall2 not installed: init script missing at %s", PASSWALL2_INIT
+        )
+        return False
+
+    # 2. UCI package present
+    dump = uci_show(PASSWALL2_PACKAGE)
+    if not dump:
+        logger.fatal(
+            "PassWall2 not configured: `uci show %s` returned nothing",
+            PASSWALL2_PACKAGE,
+        )
+        return False
+
+    # 3. Shunt node reference
+    anchor = uci_get(f"{PASSWALL2_GLOBAL}.node")
+    if not anchor:
+        logger.fatal(
+            "PassWall2 shunt node not configured: %s.node is empty",
+            PASSWALL2_GLOBAL,
+        )
+        return False
+
+    # 4. Section exists
+    prefix = f"{PASSWALL2_PACKAGE}.{anchor}="
+    if not any(line.strip().startswith(prefix) for line in dump.splitlines()):
+        logger.fatal(
+            "PassWall2 shunt section '%s' not found in UCI config "
+            "(referenced by %s.node)",
+            anchor, PASSWALL2_GLOBAL,
+        )
+        return False
+
+    logger.info(
+        "PassWall2 check: OK (init present, shunt node '%s' exists)", anchor
+    )
+    return True
+
+
 def restart_passwall2() -> bool:
     """Restart PassWall2 via the init script."""
     if not os.path.exists(PASSWALL2_INIT):
