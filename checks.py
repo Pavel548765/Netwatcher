@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-checks.py — network checks: TCP, HTTPS, external resources.
+checks.py — network checks: TCP, ICMP, HTTPS, socket, DNS, external resources.
 """
 
 from __future__ import annotations
@@ -11,18 +11,25 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
-from logger import logger
-from utils import extract_host_port, fmt_ms, run_command
+
 from data import (
     CHECK_URLS,
     CURL_BIN,
     CURL_TIMEOUT,
+    DIG_BIN,
+    DNS_CHECK_DNSSEC,
+    INTERNET_PING_HOST,
+    INTERNET_PING_TIMEOUT,
+    INTERNET_TCPING_TARGETS,
+    INTERNET_TCPING_TIMEOUT,
     MAX_WORKERS,
+    PING_BIN,
     TCPING_BIN,
     TCPING_TIMEOUT,
     VALID_REDIRECT_CODES,
 )
-
+from logger import logger
+from utils import extract_host_port, fmt_ms, run_command, which
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,9 +43,9 @@ def tcping(
 
     Syntax: tcping -c 1 -t <timeout> -p <port> <host>
 
-    IMPORTANT: on failure we return latency=None — protection against a bug where
-    tcping prints 'time=0.00ms' even on a failed attempt, and a zero latency
-    gets treated as the best result.
+    IMPORTANT: on failure we return latency=None — protection against a bug
+    where tcping prints 'time=0.00ms' even on a failed attempt, and a zero
+    latency gets treated as the best result.
 
     :return: (success, latency_ms_or_None).
     """
@@ -79,17 +86,105 @@ def tcping(
     return True, latency
 
 
+def _ping_ok(host: str, timeout: int = 1) -> bool:
+    """
+    ICMP ping check: `ping -c 1 -W <timeout> <host>`.
+
+    :return: True if the host replied, False otherwise (or binary missing).
+    """
+    if not host:
+        return False
+    if not which(PING_BIN):
+        logger.debug("_ping_ok: '%s' not in PATH, skipping ICMP check", PING_BIN)
+        return False
+
+    cmd = [PING_BIN, "-c", "1", "-W", str(timeout), host]
+    try:
+        res = run_command(cmd, timeout=timeout + 3)
+    except RuntimeError:
+        return False
+    return res.returncode == 0
+
+
+def _parse_host_port(target: str, default_port: int = 443) -> Tuple[str, int]:
+    """Parses 'host:port' or 'host' → (host, port)."""
+    if ":" in target:
+        host, port_s = target.rsplit(":", 1)
+        try:
+            return host, int(port_s)
+        except ValueError:
+            return host, default_port
+    return target, default_port
+
+
+def direct_internet_ok() -> bool:
+    """
+    Preflight: verifies that the internet works at all, BEFORE the tunnel
+    is checked. This is deliberately done on raw IPs, so it doesn't depend
+    on DNS.
+
+    OR logic: any single successful check = internet is up.
+        1. ICMP ping to `INTERNET_PING_HOST`.
+        2. tcping to any target in `INTERNET_TCPING_TARGETS`.
+
+    If everything fails — logs FATAL and returns False. The caller must
+    abort without touching state or PassWall2.
+    """
+    # 1. ICMP ping
+    if _ping_ok(INTERNET_PING_HOST, INTERNET_PING_TIMEOUT):
+        logger.info("Direct internet: OK (ping %s)", INTERNET_PING_HOST)
+        return True
+    logger.debug("Direct internet: ping %s failed", INTERNET_PING_HOST)
+
+    # 2. tcping targets
+    for target in INTERNET_TCPING_TARGETS:
+        host, port = _parse_host_port(target, 443)
+        logger.debug("Direct internet: tcping %s:%d", host, port)
+        ok, lat = tcping(host, port, timeout=INTERNET_TCPING_TIMEOUT)
+        if ok:
+            logger.info(
+                "Direct internet: OK (tcping %s:%d, %s)",
+                host, port, fmt_ms(lat),
+            )
+            return True
+
+    logger.fatal(
+        "Direct internet: FAIL (ping %s + %d tcping targets all failed)",
+        INTERNET_PING_HOST, len(INTERNET_TCPING_TARGETS),
+    )
+    return False
+
+
+def _dns_resolve_check(dns_ip: str, domain: str, timeout: int = 5) -> bool:
+    """
+    Resolves `domain` via the given DNS server and returns True if any
+    answer was received.
+
+    Empty output is treated as failure (DNS dead / NXDOMAIN / timeout).
+
+    :param dns_ip:  IP of the DNS server (no port; dig defaults to 53);
+    :param domain:  domain to resolve;
+    :param timeout: per-query timeout in seconds.
+    """
+    if not dns_ip or not domain:
+        return False
+
+    cmd = [DIG_BIN, f"@{dns_ip}", "+udp", "+short", f"+time={timeout}"]
+    if DNS_CHECK_DNSSEC:
+        cmd.insert(2, "+dnssec")
+    cmd.append(domain)
+
+    try:
+        res = run_command(cmd, timeout=timeout + 3)
+    except RuntimeError:
+        return False
+    if res.returncode != 0:
+        return False
+    return bool((res.stdout or "").strip())
+
+
 def curl_https_check(url: str, timeout: int = CURL_TIMEOUT) -> Tuple[bool, Optional[int]]:
-    """
-    HTTPS GET check via curl.
-
-    Returns (got_response, http_code). If the connection is not established
-    or times out — (False, None). Code 0 (curl "000") is normalized to None.
-
-    :param url:     URL to check;
-    :param timeout: timeout in seconds.
-    :return:        (got_response, http_code_or_None).
-    """
+    """ ... unchanged ... """
     cmd = [
         CURL_BIN,
         "-s", "-o", "/dev/null",
@@ -119,17 +214,9 @@ def curl_https_check(url: str, timeout: int = CURL_TIMEOUT) -> Tuple[bool, Optio
 def url_test(
     host: str, port: int, timeout: int = TCPING_TIMEOUT
 ) -> Tuple[bool, Optional[float]]:
-    """
-    A node's `url-test` — an independent check over a plain Python socket.
-
-    This serves as the second, independent latency measurement point from tcping.
-    By spec, the url-test result takes priority over tcping when choosing latency.
-
-    :return: (success, latency_ms_or_None).
-    """
+    """ ... unchanged ... """
     if not host or not port:
         return False, None
-
     start = time.monotonic()
     try:
         with socket.create_connection((host, int(port)), timeout=timeout):
@@ -140,8 +227,9 @@ def url_test(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HTTP code helpers
+# HTTP code helpers + external resources
 # ─────────────────────────────────────────────────────────────────────────────
+
 def _is_http_code_ok(code: Optional[int]) -> bool:
     """True for 2xx, 301, 302, 307, 308. Everything else is a failure."""
     if not code:

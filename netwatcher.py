@@ -12,16 +12,24 @@ import sys
 from logger import logger
 from checks import check_external_resources
 from nodes import measure_servers_latency, select_best_server
-from data import UCI_BIN, CURL_BIN, LUA_BIN, TCPING_BIN, validate_config
 from utils import which, fmt_ms
 from state import load_state, save_state, append_history, update_node_stats
+from preflight import run_preflight_checks
+from data import (
+    UCI_BIN, 
+    CURL_BIN, 
+    LUA_BIN, 
+    TCPING_BIN, 
+    PING_BIN, 
+    DIG_BIN, 
+    validate_config
+)
 from passwall import (
     parse_passwall2_nodes,
     vpn_set_default_node,
     vpn_switch_to_direct,
     vpn_update_subscriptions,
 )
-from nodes import measure_servers_latency, select_best_server
 
 
 def _log_banner(title: str) -> None:
@@ -58,6 +66,25 @@ def main() -> int:
             logger.info("Utility '%s' found: %s", tool, path)
         else:
             logger.warning("Utility '%s' not found in PATH", tool)
+
+    # Tool availability check (extended with ping/dig)
+    
+    for tool in (UCI_BIN, CURL_BIN, LUA_BIN, TCPING_BIN, PING_BIN, DIG_BIN):
+        path = which(tool)
+        if path:
+            logger.info("Utility '%s' found: %s", tool, path)
+        else:
+            logger.warning("Utility '%s' not found in PATH", tool)
+
+    # ── Preflight checks ─────────────────────────────────────────────────
+    # These abort the run if the environment is not ready. Nothing is
+    # changed on disk (state, config, UCI) on failure.
+    
+    if not run_preflight_checks():
+        logger.fatal(
+            "Preflight failed — exiting without touching state or PassWall2"
+        )
+        return 1
 
     # ── Load state ────────────────────────────────────────────────────────
     logger.debug("Step 0: loading state")

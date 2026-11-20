@@ -64,8 +64,7 @@ def _int(section: str, key: str, default: int) -> int:
 def _bool(section: str, key: str, default: bool) -> bool:
     """
     Reads a bool. Accepts native bool, plus string forms '1/true/yes/on'
-    (so that a user writing `file_color = "false"` doesn't accidentally
-    get `True` via `bool("false")`).
+    so that `file_color = "false"` doesn't accidentally become `True`.
     """
     value = _get(section, key, default)
     if isinstance(value, bool):
@@ -86,10 +85,28 @@ STATE_FILE = _get("paths", "state_file", os.path.join(LOG_DIR, "state.json"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# External checks
+# External checks — tunnel
 # ─────────────────────────────────────────────────────────────────────────────
 CHECK_URLS      = _get("checks", "urls", [])
 URL_TEST_TARGET = _get("checks", "url_test_target", CHECK_URLS[0] if CHECK_URLS else "")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# External checks — direct internet (runs BEFORE the tunnel check)
+# ─────────────────────────────────────────────────────────────────────────────
+INTERNET_PING_HOST     = _get("checks", "direct_ping_host", "178.219.36.49")
+INTERNET_PING_TIMEOUT  = _int("checks", "direct_ping_timeout", 1)
+INTERNET_TCPING_TARGETS = _get("checks", "direct_tcping_targets", [])
+INTERNET_TCPING_TIMEOUT = _int("checks", "direct_tcping_timeout", 2)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# External checks — DNS (runs AFTER internet, BEFORE the tunnel check)
+# ─────────────────────────────────────────────────────────────────────────────
+DNS_CHECK_DOMAIN  = _get("checks", "dns_check_domain", "ya.ru")
+DNS_CHECK_TIMEOUT = _int("checks", "dns_check_timeout", 5)
+DNS_CHECK_DNSSEC  = _bool("checks", "dns_check_dnssec", True)
+DNS_FALLBACKS     = _get("checks", "dns_fallbacks", [])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +116,8 @@ TCPING_BIN = _get("utilities", "tcping", "tcping")
 CURL_BIN   = _get("utilities", "curl",   "curl")
 UCI_BIN    = _get("utilities", "uci",    "uci")
 LUA_BIN    = _get("utilities", "lua",    "lua")
+PING_BIN   = _get("utilities", "ping",   "ping")
+DIG_BIN    = _get("utilities", "dig",    "dig")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -167,7 +186,6 @@ def validate_config() -> None:
     Validates critical runtime parameters. If checks.urls is empty,
     the program exits with code 2.
     """
-    # Lazy import to avoid a circular dependency at module-load time.
     from logger import logger
 
     if not CHECK_URLS:
@@ -175,6 +193,11 @@ def validate_config() -> None:
         sys.exit(2)
     if not SERVER_BLACKLIST_ADDRESSES:
         logger.info("blacklist.static_addresses is empty — static blacklist disabled")
+    if not INTERNET_TCPING_TARGETS and not INTERNET_PING_HOST:
+        logger.warning(
+            "checks.direct_tcping_targets and checks.direct_ping_host are both empty — "
+            "direct internet check will be skipped"
+        )
     logger.info(
         "Parameters: MAX_WORKERS=%d, BLACKLIST_THRESHOLD=%d, BLACKLIST_DURATION_MIN=%d",
         MAX_WORKERS, BLACKLIST_THRESHOLD, BLACKLIST_DURATION_MIN,
