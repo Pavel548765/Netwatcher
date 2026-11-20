@@ -133,7 +133,7 @@ Sets the chosen node as the default and restarts PassWall2.
 ## Installation
 Make sure the required utilities are installed:
 
-__tcping, curl, uci, lua, python(3.11+), passwall2, bing-dig(or a similar one)__
+__tcping, curl, uci, lua, python(3.11+), passwall2, bind-dig(or a similar one)__
 
 Copy all *.py files from this repository (except data.py) into
 /usr/share/netwatcher/. Then copy data.py there as well. Place
