@@ -42,6 +42,32 @@ Runtime files (created automatically):
 | `nodes.py`     | Node-level latency measurement + best-node selection.                |
 | `netwatcher.py`| Orchestrator: `main()` + startup block.                              |
 
+## Algorithm
+
+**Preflight checks** run on every start, BEFORE the main algorithm:
+
+1. PassWall2 is installed and a shunt node is configured.
+2. Direct internet works — ping to `checks.direct_ping_host`, OR tcping to
+   any of `checks.direct_tcping_targets`. If everything fails, FATAL + exit.
+3. A working DNS is configured as `passwall2.@global[0].direct_dns`. If the
+   current DNS doesn't resolve `checks.dns_check_domain`, fallbacks from
+   `checks.dns_fallbacks` are tried and the first working one is set.
+
+If any preflight check fails, the program exits with FATAL and **makes no
+changes** — no state update, no PassWall2 restart, no node shuffling. This
+avoids polluting node statistics when the underlying problem is not VPN.
+
+**Main algorithm** (runs only after preflight succeeds):
+
+1. Checks the availability of the external resources from `checks.urls`.
+   If successful — exits with `"result": "ok"` in state.
+2. On an unsuccessful check (more than one failure) — switches the current
+   PassWall2 node to `_direct`.
+3. Updates all subscription links.
+4. Selects the best node by `tcping` + socket `url_test` results, honoring
+   the static and dynamic blacklists.
+5. Sets the chosen node as the default and restarts PassWall2.
+
 ## Configuration
 
 All user-tunable parameters live in `/etc/netwatcher/config.toml`.
@@ -118,3 +144,10 @@ To run the program on a schedule, use cron:
 __*/2 * * * * flock -n /tmp/netwatcher.lock /usr/bin/python3.13 /usr/share/netwatcher/netwatcher.py >> /dev/null 2>&1__
 
 (runs every two minutes, flock prevents parallel execution)
+
+## Notes
+- **`[checks]`** also holds the preflight targets:
+  `direct_ping_host`, `direct_tcping_targets`, `dns_check_domain`,
+  `dns_fallbacks`. These are used BEFORE the tunnel check to distinguish
+  "no internet" from "VPN down". Adjust them to hosts reachable from your
+  provider without a VPN.
