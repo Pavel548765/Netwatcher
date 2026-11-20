@@ -15,6 +15,7 @@ from nodes import measure_servers_latency, select_best_server
 from utils import which, fmt_ms
 from state import load_state, save_state, append_history, update_node_stats
 from preflight import run_preflight_checks
+from data import UCI_BIN, CURL_BIN, LUA_BIN, TCPING_BIN, validate_config
 from passwall import (
     parse_passwall2_nodes,
     vpn_set_default_node,
